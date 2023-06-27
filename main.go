@@ -25,8 +25,23 @@ type ObjRequest struct {
 }
 
 type DataRequest struct {
-	Value1 *int `json:"value1"`
-	Value2 *int `json:"value2"`
+	Username string `json:"username"`
+	Name     string `json:"name"`
+	Phone    string `json:"phone"`
+}
+
+type ObjResponse struct {
+	ResponseId      string       `json:"responseId"`
+	ResponseTime    string       `json:"responseTime"`
+	ResponseCode    string       `json:"responseCode"`
+	ResponseMessage string       `json:"responseMessage"`
+	Data            DateResponse `json:"data"`
+}
+
+type DateResponse struct {
+	Username string `json:"username"`
+	Name     string `json:"name"`
+	Phone    string `json:"phone"`
 }
 
 func (Users) TableName() string { return "users" }

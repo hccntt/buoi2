@@ -99,7 +99,8 @@ func createUser(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		if user := db.Where("username = ?", dataUser.Username).First(&dataUser); user != nil {
+		var count int64
+		if db.Model(&Users{}).Where("username = ?", dataUser.Username).Count(&count); count > 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Duplicate data"})
 			return
 		}

@@ -72,44 +72,46 @@ func main() {
 
 func createUser(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var dataUser Users
+		var objR ObjRequest
 
-		if err := c.ShouldBind(&dataUser); err != nil {
+		if err := c.ShouldBind(&objR); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
 		// preprocess title - trim all spaces
-		dataUser.Username = strings.TrimSpace(dataUser.Username)
-		dataUser.Name = strings.TrimSpace(dataUser.Name)
-		dataUser.Phone = strings.TrimSpace(dataUser.Phone)
+		objR.Data.Username = strings.TrimSpace(objR.Data.Username)
+		objR.Data.Name = strings.TrimSpace(objR.Data.Name)
+		objR.Data.Phone = strings.TrimSpace(objR.Data.Phone)
 
-		if dataUser.Username == "" {
+		if objR.Data.Username == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Username cannot be blank"})
 			return
 		}
 
-		if dataUser.Name == "" {
+		if objR.Data.Name == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Name cannot be blank"})
 			return
 		}
 
-		if dataUser.Phone == "" {
+		if objR.Data.Phone == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Phone cannot be blank"})
 			return
 		}
 
-		if user := db.Where("username = ?", dataUser.Username).First(&dataUser); user != nil {
+		data := Users{Username: objR.Data.Username, Name: objR.Data.Name, Phone: objR.Data.Phone}
+
+		if user := db.Where("username = ?", objR.Data.Username).First(&data); user != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Duplicate data"})
 			return
 		}
 
-		if err := db.Create(&dataUser).Error; err != nil {
+		if err := db.Create(&data).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"data": dataUser.Id})
+		c.JSON(http.StatusOK, gin.H{"data": data.Id})
 	}
 }
 

@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -62,11 +61,11 @@ func main() {
 
 	v1 := router.Group("/v1")
 	{
-		v1.POST("/users", createUser(db))           // create user
-		v1.GET("/users", getListOfUsers(db))        // list users
-		v1.POST("/search-user", readUserById(db))   // get an user by ID
-		v1.PUT("/users/:id", editUserById(db))      // edit an user by ID
-		v1.DELETE("/users/:id", deleteUserById(db)) // delete an user by ID
+		v1.POST("/users", createUser(db))         // create user
+		v1.GET("/users", getListOfUsers(db))      // list users
+		v1.POST("/search-user", readUserById(db)) // get an user by ID
+		v1.POST("/update-user", editUserById(db)) // edit an user by ID
+		v1.DELETE("/users", deleteUserById(db))   // delete an user by ID
 	}
 
 	router.Run()
@@ -230,6 +229,7 @@ func getListOfUsers(db *gorm.DB) gin.HandlerFunc {
 func editUserById(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var objReq ObjRequest
+		c.BindJSON(&objReq)
 		datetime := time.Now().UTC()
 		// id, err := strconv.Atoi(c.Param("id"))
 
@@ -240,10 +240,12 @@ func editUserById(db *gorm.DB) gin.HandlerFunc {
 
 		objRes := ObjResponse{ResponseId: uuid.New().String(), ResponseTime: datetime.Format(time.RFC3339)}
 		// preprocess title - trim all spaces
-		objReq.Data.Username = strings.TrimSpace(objReq.Data.Username)
+		objRes.Data.Username = strings.TrimSpace(objReq.Data.Username)
+		objRes.Data.Name = strings.TrimSpace(objReq.Data.Name)
+		objRes.Data.Phone = strings.TrimSpace(objReq.Data.Phone)
 
 		log.Printf("Check username: " + objReq.Data.Username)
-		if objReq.Data.Username == "" {
+		if objRes.Data.Username == "" {
 			objRes.ResponseCode = "01"
 			objRes.ResponseMessage = "Invalid Username"
 
@@ -251,73 +253,96 @@ func editUserById(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		var dataUser Users
+		if objRes.Data.Name == "" {
+			objRes.ResponseCode = "02"
+			objRes.ResponseMessage = "Invalid name"
+
+			c.JSON(http.StatusBadRequest, objRes)
+			return
+		}
+
+		if objRes.Data.Phone == "" {
+			objRes.ResponseCode = "03"
+			objRes.ResponseMessage = "Invalid Phone"
+
+			c.JSON(http.StatusBadRequest, objRes)
+			return
+		}
+
+		dataUser := Users{Username: objRes.Data.Username, Name: objRes.Data.Name, Phone: objRes.Data.Phone}
 
 		// preprocess title - trim all spaces
-		dataUser.Username = strings.TrimSpace(dataUser.Username)
-		dataUser.Name = strings.TrimSpace(dataUser.Name)
-		dataUser.Phone = strings.TrimSpace(dataUser.Phone)
-
-		if dataUser.Username == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Username cannot be blank"})
-			return
-		}
-
-		if dataUser.Name == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Name cannot be blank"})
-			return
-		}
-
-		if dataUser.Phone == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Phone cannot be blank"})
-			return
-		}
+		// dataUser.Username = strings.TrimSpace(dataUser.Username)
+		// dataUser.Name = strings.TrimSpace(dataUser.Name)
+		// dataUser.Phone = strings.TrimSpace(dataUser.Phone)
 
 		// check have id exist in db
-		if err := db.Where("id = ?", id).First(&dataUser).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err := db.Where("username = ?", dataUser.Username).First(&dataUser).Error; err != nil {
+			objRes.ResponseCode = "09"
+			objRes.ResponseMessage = "NotFound Data"
+
+			c.JSON(http.StatusBadRequest, objRes)
+			//c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
 		// map
-		if err := c.ShouldBind(&dataUser); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// if err := c.ShouldBind(&dataUser); err != nil {
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// 	return
+		// }
+
+		if err := db.Where("username = ?", dataUser.Username).Updates(&dataUser).Error; err != nil {
+			objRes.ResponseCode = "10"
+			objRes.ResponseMessage = "Until error update data"
+
+			c.JSON(http.StatusBadRequest, objRes)
+			//c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		if err := db.Where("id = ?", id).Updates(&dataUser).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"data": true})
+		objRes.ResponseCode = "00"
+		objRes.ResponseMessage = "Success"
+		c.JSON(http.StatusOK, objRes)
 	}
 }
 
 func deleteUserById(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id, err := strconv.Atoi(c.Param("id"))
+		var objReq ObjRequest
+		c.BindJSON(&objReq)
+		datetime := time.Now().UTC()
+		// id, err := strconv.Atoi(c.Param("id"))
 
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
+		// if err != nil {
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// 	return
+		// }
 
-		var dataUser Users
+		objRes := ObjResponse{ResponseId: uuid.New().String(), ResponseTime: datetime.Format(time.RFC3339)}
+		// preprocess title - trim all spaces
+		objRes.Data.Username = strings.TrimSpace(objReq.Data.Username)
+		objRes.Data.Name = strings.TrimSpace(objReq.Data.Name)
+		objRes.Data.Phone = strings.TrimSpace(objReq.Data.Phone)
+
+		dataUser := Users{Username: objRes.Data.Username, Name: objRes.Data.Name, Phone: objRes.Data.Phone}
 
 		// check have id exist in db
-		if err := db.Where("id = ?", id).First(&dataUser).Error; err != nil {
+		if err := db.Where("username = ?", dataUser.Username).First(&dataUser).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		if err := db.Table(Users{}.TableName()).
-			Where("id = ?", id).
-			Delete(nil).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err := db.Table(Users{}.TableName()).Where("username = ?", dataUser.Username).Delete(nil).Error; err != nil {
+			objRes.ResponseCode = "10"
+			objRes.ResponseMessage = "Until error update data"
+			//c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			c.JSON(http.StatusBadRequest, objRes)
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"data": true})
+		objRes.ResponseCode = "00"
+		objRes.ResponseMessage = "Success"
+		c.JSON(http.StatusOK, objRes)
 	}
 }

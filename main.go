@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -62,7 +64,7 @@ func main() {
 	{
 		v1.POST("/users", createUser(db))           // create user
 		v1.GET("/users", getListOfUsers(db))        // list users
-		v1.GET("/users/:id", readUserById(db))      // get an user by ID
+		v1.POST("/search-user", readUserById(db))   // get an user by ID
 		v1.PUT("/users/:id", editUserById(db))      // edit an user by ID
 		v1.DELETE("/users/:id", deleteUserById(db)) // delete an user by ID
 	}
@@ -72,66 +74,116 @@ func main() {
 
 func createUser(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var objR ObjRequest
+		var objReq ObjRequest
+		datetime := time.Now().UTC()
 
-		if err := c.ShouldBind(&objR); err != nil {
+		if err := c.ShouldBind(&objReq); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
 		// preprocess title - trim all spaces
-		objR.Data.Username = strings.TrimSpace(objR.Data.Username)
-		objR.Data.Name = strings.TrimSpace(objR.Data.Name)
-		objR.Data.Phone = strings.TrimSpace(objR.Data.Phone)
+		objReq.Data.Username = strings.TrimSpace(objReq.Data.Username)
+		objReq.Data.Name = strings.TrimSpace(objReq.Data.Name)
+		objReq.Data.Phone = strings.TrimSpace(objReq.Data.Phone)
 
-		if objR.Data.Username == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Username cannot be blank"})
+		objRes := ObjResponse{ResponseId: uuid.New().String(), ResponseTime: datetime.Format(time.RFC3339)}
+
+		if objReq.Data.Username == "" {
+			objRes.ResponseCode = "01"
+			objRes.ResponseMessage = "Invalid Username"
+
+			c.JSON(http.StatusBadRequest, objRes)
 			return
 		}
 
-		if objR.Data.Name == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Name cannot be blank"})
+		if objReq.Data.Name == "" {
+			objRes.ResponseCode = "02"
+			objRes.ResponseMessage = "Invalid name"
+
+			c.JSON(http.StatusBadRequest, objRes)
 			return
 		}
 
-		if objR.Data.Phone == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Phone cannot be blank"})
+		if objReq.Data.Phone == "" {
+			objRes.ResponseCode = "03"
+			objRes.ResponseMessage = "Invalid Phone"
+
+			c.JSON(http.StatusBadRequest, objRes)
 			return
 		}
 
-		data := Users{Username: objR.Data.Username, Name: objR.Data.Name, Phone: objR.Data.Phone}
+		data := Users{Username: objReq.Data.Username, Name: objReq.Data.Name, Phone: objReq.Data.Phone}
 
-		if user := db.Where("username = ?", objR.Data.Username).First(&data); user != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Duplicate data"})
+		var count int64
+		if db.Model(&Users{}).Where("username = ?", data.Username).Count(&count); count > 0 {
+			objRes.ResponseCode = "04"
+			objRes.ResponseMessage = "Duplicate data"
+
+			c.JSON(http.StatusBadRequest, objRes)
 			return
 		}
 
 		if err := db.Create(&data).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			objRes.ResponseCode = "05"
+			objRes.ResponseMessage = "Cannot insert db, pls contact administrator"
+			log.Fatalln("Create user: ", err.Error())
+			c.JSON(http.StatusBadRequest, objRes)
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"data": data.Id})
+		objRes.ResponseCode = "00"
+		objRes.ResponseMessage = "Success"
+
+		c.JSON(http.StatusOK, objRes)
 	}
 }
 
 func readUserById(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var objReq ObjRequest
+		c.BindJSON(&objReq)
+		datetime := time.Now().UTC()
+
+		//id, err := strconv.Atoi(c.Param("id"))
+
+		objRes := ObjResponse{ResponseId: uuid.New().String(), ResponseTime: datetime.Format(time.RFC3339)}
+
+		// if err != nil {
+		// 	objRes.ResponseCode = "06"
+		// 	objRes.ResponseMessage = "BadRequest"
+		// 	c.JSON(http.StatusBadRequest, objRes)
+		// 	return
+		// }
+
+		// preprocess title - trim all spaces
+		objReq.Data.Username = strings.TrimSpace(objReq.Data.Username)
+
+		log.Printf("Check username: " + objReq.Data.Username)
+		if objReq.Data.Username == "" {
+			objRes.ResponseCode = "01"
+			objRes.ResponseMessage = "Invalid Username"
+
+			c.JSON(http.StatusBadRequest, objRes)
+			return
+		}
+
 		var dataUser Users
-
-		id, err := strconv.Atoi(c.Param("id"))
-
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		if err := db.Where("username = ?", objReq.Data.Username).First(&dataUser).Error; err != nil {
+			objRes.ResponseCode = "07"
+			objRes.ResponseMessage = "Not found data with username: " + objReq.Data.Username
+			c.JSON(http.StatusBadRequest, objRes)
+			//c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		if err := db.Where("id = ?", id).First(&dataUser).Error; err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
+		objRes.ResponseCode = "00"
+		objRes.ResponseMessage = "Success"
+		objRes.Data.Name = dataUser.Name
+		objRes.Data.Username = dataUser.Username
+		objRes.Data.Phone = dataUser.Phone
 
-		c.JSON(http.StatusOK, gin.H{"data": dataUser})
+		c.JSON(http.StatusOK, objRes)
 	}
 }
 
@@ -177,10 +229,25 @@ func getListOfUsers(db *gorm.DB) gin.HandlerFunc {
 
 func editUserById(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id, err := strconv.Atoi(c.Param("id"))
+		var objReq ObjRequest
+		datetime := time.Now().UTC()
+		// id, err := strconv.Atoi(c.Param("id"))
 
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// if err != nil {
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// 	return
+		// }
+
+		objRes := ObjResponse{ResponseId: uuid.New().String(), ResponseTime: datetime.Format(time.RFC3339)}
+		// preprocess title - trim all spaces
+		objReq.Data.Username = strings.TrimSpace(objReq.Data.Username)
+
+		log.Printf("Check username: " + objReq.Data.Username)
+		if objReq.Data.Username == "" {
+			objRes.ResponseCode = "01"
+			objRes.ResponseMessage = "Invalid Username"
+
+			c.JSON(http.StatusBadRequest, objRes)
 			return
 		}
 

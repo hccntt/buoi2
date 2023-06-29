@@ -48,7 +48,8 @@ type DateResponse struct {
 func (Users) TableName() string { return "users" }
 
 func main() {
-	dsn := "root:123456@tcp(127.0.0.1:3306)/buoi2?charset=utf8mb4&parseTime=True&loc=Local"
+	//dsn := "root:123456@tcp(127.0.0.1:3306)/buoi2?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := "hccntt:hccntt123456@tcp(85.10.205.173:3306)/mysqlfree?charset=utf8mb4&parseTime=True&loc=Local"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 
 	if err != nil {
